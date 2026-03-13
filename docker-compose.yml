@@ -1,0 +1,39 @@
+services:
+  model-training:
+    image: python:3.10-slim
+    container_name: banknote_trainer
+    working_dir: /app
+    volumes:
+      - ./src:/app/src
+      - ./requirements.txt:/app/requirements.txt
+      - model_exchange:/exchange
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             pip install ucimlrepo &&
+             python src/model_training.py &&
+             cp banknote_model.pth /exchange/ &&
+             cp scaler.pkl /exchange/"
+
+  serving:
+    image: python:3.10-slim
+    container_name: banknote_serving
+    working_dir: /app
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./src:/app/src
+      - ./requirements.txt:/app/requirements.txt
+      - ./src/templates:/app/templates
+      - ./src/statics:/app/statics
+      - model_exchange:/exchange
+    depends_on:
+      model-training:
+        condition: service_completed_successfully
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             cp /exchange/banknote_model.pth . &&
+             cp /exchange/scaler.pkl . &&
+             python src/main.py"
+
+volumes:
+  model_exchange:
